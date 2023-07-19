@@ -1,5 +1,8 @@
-import { notFoundError } from "@/errors";
+import { forbiddenError, notFoundError } from "@/errors";
 import bookingRepository from "@/repositories/booking-repository";
+import enrollmentRepository from "@/repositories/enrollment-repository";
+import ticketsRepository from "@/repositories/tickets-repository";
+import { TicketStatus } from "@prisma/client";
 
 async function listBooking(userId: number) {
     const response = await bookingRepository.getBookingByUserId(userId);
@@ -14,8 +17,30 @@ async function listBooking(userId: number) {
     return correctInfoBooking;
 }
 
+async function createBooking(roomId: number, userId: number) {
+    const enrollment = await enrollmentRepository.findWithAddressByUserId(userId);
+    if(!enrollment) throw forbiddenError();
+
+    const ticket = await ticketsRepository.findTicketByEnrollmentId(enrollment.id);
+    if (
+        ticket.TicketType.isRemote === true ||
+        ticket.TicketType.includesHotel === false ||
+        ticket.status === TicketStatus.RESERVED
+    )
+        throw forbiddenError();
+
+    const findRoomId = await bookingRepository.findRoomId(roomId);
+    if (!findRoomId) throw notFoundError();
+    if (findRoomId.capacity === 0) throw forbiddenError();
+
+    const response = await bookingRepository.createBookingByRoomId(roomId, userId);
+
+    return { bookingId: response.id };
+}
+
 const bookingServices = {
     listBooking,
+    createBooking
 }
 
 export default bookingServices;

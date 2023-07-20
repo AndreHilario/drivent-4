@@ -12,7 +12,6 @@ import {
     createPayment,
     createRoomWithHotelId,
     createTicket,
-    createTicketTypeRemote,
     createTicketTypeWithHotel,
     createUser,
 } from '../factories';
@@ -74,10 +73,9 @@ describe('GET /booking', () => {
             const hotel = await createHotel();
             const room = await createRoomWithHotelId(hotel.id);
             const booking = await createBooking(enrollment.userId, room.id);
-            console.log(booking)
 
             const response = await server.get('/booking').set('Authorization', `Bearer ${token}`);
-            console.log(response.body)
+            
             expect(response.status).toBe(httpStatus.OK);
             expect(response.body).toEqual({
                 id: booking.id,
@@ -92,5 +90,4 @@ describe('GET /booking', () => {
             });
         });
     });
-
-})
+});

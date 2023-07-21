@@ -1,109 +1,158 @@
-import bookingRepository from "@/repositories/booking-repository";
-import enrollmentRepository from "@/repositories/enrollment-repository";
-import ticketsRepository from "@/repositories/tickets-repository";
-import bookingServices from "@/services/booking-service";
-import { TicketStatus } from "@prisma/client";
+import { Booking, Enrollment, Hotel, Room, Ticket, TicketStatus, TicketType, User } from '@prisma/client';
+import faker from '@faker-js/faker';
+import {
+  createBooking,
+  createEnrollmentWithAddress,
+  createHotel,
+  createRoomWithHotelId,
+  createUser,
+  createTicket,
+  createTicketTypeWithHotel,
+  createPayment,
+} from '../factories';
+import { cleanDb } from '../helpers';
+import ticketsRepository from '@/repositories/tickets-repository';
+import bookingServices from '@/services/booking-service';
+import { init } from '@/app';
+import { TicketWithTicketType } from '@/protocols';
+import bookingRepository from '@/repositories/booking-repository';
 
-describe('POST /booking unit test', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
+beforeAll(async () => {
+  await init();
+});
+
+beforeEach(async () => {
+  await cleanDb();
+});
+
+describe('All unit tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should throw an error when ticketType is remote', async () => {
+    const mockUser: User = await createUser();
+    const mockEnrollment: Enrollment = await createEnrollmentWithAddress(mockUser);
+    const mockTicketType: TicketType = await createTicketTypeWithHotel();
+    const mockTicket: Ticket = await createTicket(mockEnrollment.id, mockTicketType.id, TicketStatus.PAID);
+    await createPayment(mockTicket.id, mockTicketType.price);
+    const mockHotel: Hotel = await createHotel();
+    const mockRoom: Room = await createRoomWithHotelId(mockHotel.id);
+    const mockBooking: Booking = await createBooking(mockUser.id, mockRoom.id);
+    const ticket: TicketWithTicketType = {
+      id: mockBooking.id,
+      ticketTypeId: mockTicketType.id,
+      enrollmentId: mockEnrollment.id,
+      status: TicketStatus.PAID,
+      TicketType: {
+        id: mockTicketType.id,
+        name: faker.name.findName(),
+        price: faker.datatype.number(),
+        isRemote: true,
+        includesHotel: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    jest.spyOn(ticketsRepository, 'findTicketByEnrollmentId').mockResolvedValue(ticket);
+
+    try {
+      await bookingServices.createBooking(mockBooking.roomId, mockUser.id);
+      fail('Expected createBooking to throw forbiddenError');
+    } catch (error) {
+      expect(error.name).toEqual('ForbiddenError');
+      expect(error.message).toEqual('Forbidden! You do not have permission to access this resource.');
+    }
+  });
+
+  it('should throw an error when ticketType is not PAID', async () => {
+    const mockUser: User = await createUser();
+    const mockEnrollment: Enrollment = await createEnrollmentWithAddress(mockUser);
+    const mockTicketType: TicketType = await createTicketTypeWithHotel();
+    const mockTicket: Ticket = await createTicket(mockEnrollment.id, mockTicketType.id, TicketStatus.PAID);
+    await createPayment(mockTicket.id, mockTicketType.price);
+    const mockHotel: Hotel = await createHotel();
+    const mockRoom: Room = await createRoomWithHotelId(mockHotel.id);
+    const mockBooking: Booking = await createBooking(mockUser.id, mockRoom.id);
+    const ticket: TicketWithTicketType = {
+      id: mockBooking.id,
+      ticketTypeId: mockTicketType.id,
+      enrollmentId: mockEnrollment.id,
+      status: TicketStatus.RESERVED,
+      TicketType: {
+        id: mockTicketType.id,
+        name: faker.name.findName(),
+        price: faker.datatype.number(),
+        isRemote: false,
+        includesHotel: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    jest.spyOn(ticketsRepository, 'findTicketByEnrollmentId').mockResolvedValue(ticket);
+
+    try {
+      await bookingServices.createBooking(mockBooking.roomId, mockUser.id);
+      fail('Expected createBooking to throw forbiddenError');
+    } catch (error) {
+      expect(error.name).toEqual('ForbiddenError');
+      expect(error.message).toEqual('Forbidden! You do not have permission to access this resource.');
+    }
+  });
+
+  it('should throw an error when ticketType doesnt includes hotel', async () => {
+    const mockUser: User = await createUser();
+    const mockEnrollment: Enrollment = await createEnrollmentWithAddress(mockUser);
+    const mockTicketType: TicketType = await createTicketTypeWithHotel();
+    const mockTicket: Ticket = await createTicket(mockEnrollment.id, mockTicketType.id, TicketStatus.PAID);
+    await createPayment(mockTicket.id, mockTicketType.price);
+    const mockHotel: Hotel = await createHotel();
+    const mockRoom: Room = await createRoomWithHotelId(mockHotel.id);
+    const mockBooking: Booking = await createBooking(mockUser.id, mockRoom.id);
+    const ticket: TicketWithTicketType = {
+      id: mockBooking.id,
+      ticketTypeId: mockTicketType.id,
+      enrollmentId: mockEnrollment.id,
+      status: TicketStatus.PAID,
+      TicketType: {
+        id: mockTicketType.id,
+        name: faker.name.findName(),
+        price: faker.datatype.number(),
+        isRemote: false,
+        includesHotel: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    jest.spyOn(ticketsRepository, 'findTicketByEnrollmentId').mockResolvedValue(ticket);
+
+    try {
+      await bookingServices.createBooking(mockBooking.roomId, mockUser.id);
+      fail('Expected createBooking to throw forbiddenError');
+    } catch (error) {
+      expect(error.name).toEqual('ForbiddenError');
+      expect(error.message).toEqual('Forbidden! You do not have permission to access this resource.');
+    }
+  });
+
+  it('should throw an error when room choose to update doesnt belong to the user', async () => {
+    const mockUser: User = await createUser();
+    const mockHotel: Hotel = await createHotel();
+    const mockRoom: Room = await createRoomWithHotelId(mockHotel.id);
+    const mockBooking: Booking = await createBooking(mockUser.id, mockRoom.id);
+
+    jest.spyOn(bookingRepository, 'getBookingByUserId').mockResolvedValue(null);
+
+    const response = bookingServices.updateBookingRoom(mockRoom.id, mockUser.id, mockBooking.id);
+    expect(response).rejects.toEqual({
+      name: 'ForbiddenError',
+      message: 'Forbidden! You do not have permission to access this resource.',
     });
-
-    it('test if services calls are correct and working as expected', async () => {
-        let mockTicket;
-        const mockUser = {
-            id: 1,
-            email: 'john.doe@example.com',
-            password: 'hashedpassword123',
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-        };
-        const mockAddress = {
-            id: 1,
-            cep: '12345-678',
-            street: '123 Main St',
-            city: 'City',
-            state: 'State',
-            number: '123',
-            neighborhood: 'Neighborhood',
-            addressDetail: 'Apartment 456',
-            enrollmentId: 1,
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-        };
-        const mockTicketType = {
-            id: 1,
-            name: 'Presential Ticket',
-            price: 5000,
-            isRemote: false,
-            includesHotel: true,
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-            Ticket: [mockTicket],
-        };
-
-        mockTicket = {
-            id: 1,
-            ticketTypeId: 1,
-            enrollmentId: 1,
-            status: TicketStatus.PAID,
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-            TicketType: mockTicketType
-        };
-
-        const mockEnrollment = {
-            id: 1,
-            name: 'John Doe',
-            cpf: '123.456.789-00',
-            birthday: new Date('1990-01-01T00:00:00Z'),
-            phone: '(123) 456-7890',
-            userId: 1,
-            User: mockUser,
-            Address: [mockAddress],
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-            Ticket: [mockTicket],
-        };
-        const mockRoom = {
-            id: 1,
-            name: 'Standard Room',
-            capacity: 2,
-            hotelId: 123,
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-        };
-        const mockBooking = {
-            id: 1,
-            userId: 456,
-            roomId: 1,
-            createdAt: new Date('2023-07-20T12:34:56Z'),
-            updatedAt: new Date('2023-07-20T12:34:56Z'),
-        };
-
-
-
-        jest.spyOn(enrollmentRepository, 'findWithAddressByUserId').mockResolvedValueOnce(mockEnrollment);
-        jest.spyOn(ticketsRepository, 'findTicketByEnrollmentId').mockResolvedValueOnce(mockTicket);
-        jest.spyOn(bookingRepository, 'findRoomId').mockResolvedValueOnce(mockRoom);
-        jest.spyOn(bookingRepository, 'findBookingByRoomId').mockResolvedValueOnce(null);
-        jest.spyOn(bookingRepository, 'createBookingByRoomId').mockResolvedValueOnce(mockBooking);
-
-        const booking = await bookingServices.createBooking(mockUser.id, mockRoom.id);
-
-        // Verifique a resposta da função createBooking
-        expect(booking).toBeDefined(); // Ou use toBeTruthy()
-
-        // Verifique se as funções do repositório foram chamadas corretamente
-        expect(enrollmentRepository.findWithAddressByUserId).toHaveBeenCalledWith(mockUser.id);
-        expect(ticketsRepository.findTicketByEnrollmentId).toHaveBeenCalledWith(mockEnrollment.id);
-        expect(bookingRepository.findRoomId).toHaveBeenCalledWith(mockRoom.id);
-        expect(bookingRepository.findBookingByRoomId).toHaveBeenCalledWith(mockRoom.id);
-        expect(bookingRepository.createBookingByRoomId).toHaveBeenCalledWith(mockRoom.id, mockUser.id);
-
-    });
-
-   /*  it('should', async () => {
-        
-    }) */
+  });
 });

@@ -13,7 +13,7 @@ async function listBooking(userId: number) {
     id: response.id,
     Room: response.Room,
   };
-  
+
   return correctInfoBooking;
 }
 

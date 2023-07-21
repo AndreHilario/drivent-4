@@ -149,10 +149,12 @@ describe('All unit tests', () => {
 
     jest.spyOn(bookingRepository, 'getBookingByUserId').mockResolvedValue(null);
 
-    const response = bookingServices.updateBookingRoom(mockRoom.id, mockUser.id, mockBooking.id);
-    expect(response).rejects.toEqual({
-      name: 'ForbiddenError',
-      message: 'Forbidden! You do not have permission to access this resource.',
-    });
+    try {
+      await bookingServices.updateBookingRoom(mockBooking.roomId, mockUser.id, mockBooking.id);
+      fail('Expected createBooking to throw forbiddenError');
+    } catch (error) {
+      expect(error.name).toEqual('ForbiddenError');
+      expect(error.message).toEqual('Forbidden! You do not have permission to access this resource.');
+    }
   });
 });
